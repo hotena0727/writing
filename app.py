@@ -80,42 +80,10 @@ def handwriting_canvas(component_key: str, height: int = 320):
             height: {height}px;
             border-radius: 14px;
             background: rgba(255,255,255,0.02);
+            touch-action: none;
+            display: block;
           "></canvas>
         </div>
-
-        function drawGrid() {
-          // CSS 픽셀 기준으로 그리기(우리는 이미 ctx를 DPR로 맞췄으니 px 단위 OK)
-          const w = canvas.clientWidth;
-          const h = canvas.clientHeight;
-
-          // ✅ 가로 칸 수를 고정(원고지 느낌): 20칸 추천 (원하면 15/18/24로 바꿔도 됨)
-          const cols = 20;
-          const cell = w / cols;           // 폭이 정확히 cols칸으로 나뉨 → 끝 절대 안 잘림
-          const rows = Math.floor(h / cell);
-
-          // 배경 지우고(필기까지 지우면 안 되니, "초기 그리드"용으로만 쓰려면 별도 레이어가 필요)
-          // 여기서는 "초기 로딩/지우기 버튼"에서만 그리드를 다시 그리는 방식 추천
-
-          ctx.save();
-          ctx.globalAlpha = 0.22;
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = "rgba(0,0,0,0.25)";
-    
-          ctx.beginPath();
-          for (let c = 0; c <= cols; c++) {
-            const x = c * cell;
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, h);
-          }
-          for (let r = 0; r <= rows; r++) {
-            const y = r * cell;
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-          }
-          ctx.stroke();
-          ctx.restore();
-        }
-
 
         <div style="margin-top:10px; display:flex; justify-content:flex-end;">
           <button id="{component_key}_done" style="
@@ -132,19 +100,52 @@ def handwriting_canvas(component_key: str, height: int = 320):
 
       <script>
         const canvas = document.getElementById("{component_key}_canvas");
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext("2d", {{ willReadFrequently: true }});
+
         const dpr = window.devicePixelRatio || 1;
+
+        // ✅ CSS 픽셀 크기
         const cssWidth = canvas.clientWidth;
         const cssHeight = canvas.clientHeight;
 
-        // 실제 픽셀 해상도를 DPR에 맞춰 키우기
+        // ✅ 실제 픽셀 해상도를 DPR로 올림
         canvas.width = Math.floor(cssWidth * dpr);
         canvas.height = Math.floor(cssHeight * dpr);
 
-        // 좌표계를 DPR만큼 스케일
+        // ✅ 이후 모든 그리기 좌표는 "CSS 픽셀" 기준으로 사용
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawGrid();
 
+        function drawGrid() {{
+          const w = canvas.clientWidth;
+          const h = canvas.clientHeight;
+
+          // ✅ 가로 칸 수 고정 (원고지 느낌)
+          const cols = 20;   // 필요하면 15/18/24로 변경 가능
+          const cell = w / cols;
+          const rows = Math.floor(h / cell);
+
+          ctx.save();
+          ctx.globalAlpha = 0.22;
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(0,0,0,0.25)";
+
+          ctx.beginPath();
+          for (let c = 0; c <= cols; c++) {{
+            const x = c * cell;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+          }}
+          for (let r = 0; r <= rows; r++) {{
+            const y = r * cell;
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+          }}
+          ctx.stroke();
+          ctx.restore();
+        }}
+
+        // ✅ 초기 그리드
+        drawGrid();
 
         // pen
         ctx.lineWidth = 7;
@@ -159,8 +160,10 @@ def handwriting_canvas(component_key: str, height: int = 320):
           const touch = e.touches && e.touches[0];
           const clientX = touch ? touch.clientX : e.clientX;
           const clientY = touch ? touch.clientY : e.clientY;
-          const x = (clientX - rect.left) * (canvas.width / rect.width);
-          const y = (clientY - rect.top) * (canvas.height / rect.height);
+
+          // ✅ DPR transform 이후이므로 CSS 픽셀 좌표 그대로 사용
+          const x = (clientX - rect.left);
+          const y = (clientY - rect.top);
           return {{x, y}};
         }}
 
@@ -195,7 +198,9 @@ def handwriting_canvas(component_key: str, height: int = 320):
         window.addEventListener("touchend", end, {{passive:false}});
 
         document.getElementById("{component_key}_clear").addEventListener("click", () => {{
-          ctx.clearRect(0,0,canvas.width,canvas.height);
+          // ✅ clearRect는 "CSS 픽셀" 기준으로
+          ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+          drawGrid(); // ✅ 지운 후 그리드 다시
         }});
 
         document.getElementById("{component_key}_done").addEventListener("click", () => {{
@@ -207,7 +212,6 @@ def handwriting_canvas(component_key: str, height: int = 320):
     </div>
     """
     return components.html(html, height=height + 130, scrolling=False)
-
 
 # ============================================================
 # ✅ Auth UI
