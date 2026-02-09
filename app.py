@@ -75,7 +75,7 @@ def handwriting_canvas(component_key: str, height: int = 320):
         </div>
 
         <div style="margin-top:10px; position:relative;">
-          <canvas id="{component_key}_canvas" width="980" height="{height}" style="
+          <canvas id="{component_key}_canvas" style="
             width: 100%;
             height: {height}px;
             border-radius: 14px;
@@ -102,6 +102,17 @@ def handwriting_canvas(component_key: str, height: int = 320):
       <script>
         const canvas = document.getElementById("{component_key}_canvas");
         const ctx = canvas.getContext("2d");
+        const dpr = window.devicePixelRatio || 1;
+        const cssWidth = canvas.clientWidth;
+        const cssHeight = canvas.clientHeight;
+
+        // 실제 픽셀 해상도를 DPR에 맞춰 키우기
+        canvas.width = Math.floor(cssWidth * dpr);
+        canvas.height = Math.floor(cssHeight * dpr);
+
+        // 좌표계를 DPR만큼 스케일
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
 
         // pen
         ctx.lineWidth = 7;
