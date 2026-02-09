@@ -208,7 +208,6 @@ def require_login() -> bool:
 # ✅ Data fetch
 # ============================================================
 def fetch_sentences(bucket: str):
-    # active only
     res = (
         sb.table("kanji_writing_sentences")
         .select("qid,bucket,level,sentence,target_kana,answer_kanji,note")
@@ -216,8 +215,8 @@ def fetch_sentences(bucket: str):
         .eq("is_active", True)
         .execute()
     )
+    st.write("DEBUG fetch:", bucket, "count=", len(res.data or []), "error=", getattr(res, "error", None))
     return res.data or []
-
 
 def fetch_attempted_qids(user_id: str, bucket: str):
     res = (
