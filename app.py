@@ -104,10 +104,10 @@ def handwriting_canvas(component_key: str, height: int = 320):
         const ctx = canvas.getContext("2d");
 
         // pen
-        ctx.lineWidth = 8;
+        ctx.lineWidth = 7;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.strokeStyle = "rgba(0,0,0,0.92)";
 
         let drawing = false;
 
