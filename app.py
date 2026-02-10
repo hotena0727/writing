@@ -97,6 +97,57 @@ def ensure_sb_session():
             # 세션이 만료/깨졌을 수 있으니 조용히 패스
             pass
 
+def two_action_buttons(component_key: str):
+    html = r"""
+<div style="width:100%; display:flex; gap:0.45rem;">
+  <button id="__KEY___check" style="
+    flex:1 1 0; min-width:0;
+    width:100%;
+    border:0;
+    background: rgba(30, 90, 200, 0.92);
+    color:white;
+    border-radius: 12px;
+    padding: 12px 10px;
+    font-weight:900;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    cursor:pointer;
+    font-size: clamp(12px, 3.2vw, 16px);
+  ">🟦 채점</button>
+
+  <button id="__KEY___next" style="
+    flex:1 1 0; min-width:0;
+    width:100%;
+    border:0;
+    background: rgba(0,0,0,0.75);
+    color:white;
+    border-radius: 12px;
+    padding: 12px 10px;
+    font-weight:900;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    cursor:pointer;
+    font-size: clamp(12px, 3.2vw, 16px);
+  ">⏭️ 다음 문제</button>
+</div>
+
+<script>
+  function go(action){
+    const url = new URL(window.parent.location.href);
+    url.searchParams.set("kw_action", action);
+    url.searchParams.set("kw_key", "__KEY__");
+    window.parent.location.href = url.toString();
+  }
+  document.getElementById("__KEY___check").addEventListener("click", () => go("check"));
+  document.getElementById("__KEY___next").addEventListener("click", () => go("next"));
+</script>
+"""
+    html = html.replace("__KEY__", component_key)
+    return components.html(html, height=70, scrolling=False)
+
+
 # ============================================================
 # ✅ Handwriting Canvas (원고지 격자 + 필기)
 #   - "필기 저장" 버튼 누르면 base64 PNG 반환
