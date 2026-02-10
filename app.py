@@ -125,7 +125,6 @@ def handwriting_canvas(component_key: str, height: int = 320):
       ">지우기</button>
     </div>
 
-    <!-- ✅ 모바일에서도 '가로로 길게' 보이게: 가로 스크롤 랩 -->
     <div style="margin-top:10px;">
       <div id="__KEY___scrollwrap" style="
         width: 100%;
@@ -244,9 +243,39 @@ def handwriting_canvas(component_key: str, height: int = 320):
     function end(e) {
       if (!drawing) return;
       e.preventDefault();
-      d
+      drawing = false;
+    }
 
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
 
+    canvas.addEventListener("touchstart", start, { passive: false });
+    canvas.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("touchend", end, { passive: false });
+
+    document.getElementById("__KEY___clear").addEventListener("click", () => {
+      drawGrid();
+    });
+
+    document.getElementById("__KEY___done").addEventListener("click", () => {
+      const png = canvas.toDataURL("image/png");
+      const payload = { png_b64: png };
+      window.parent.postMessage(
+        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload },
+        "*"
+      );
+    });
+  </script>
+</div>
+"""
+    canvas_width_px = 1200
+    html = (
+        html.replace("__KEY__", component_key)
+        .replace("__H__", str(height))
+        .replace("__CW__", str(canvas_width_px))
+    )
+    return components.html(html, height=height + 130, scrolling=False)
 
 # ============================================================
 # ✅ Auth UI
