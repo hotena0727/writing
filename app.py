@@ -418,15 +418,7 @@ def main_app():
         default=st.session_state.get("bucket", "beginner"),
         key="bucket",
     )
-
-    # ✅ Streamlit rerun 대비: 세션을 Supabase client에 다시 주입
-    if "session" in st.session_state and st.session_state.session:
-    sb.auth.set_session(
-        st.session_state.session.access_token,
-        st.session_state.session.refresh_token,
-        )
-
-    
+   
     # ✅ 오늘 세트 재구성 조건: 날짜 or bucket or user 변경
     signature = f"{user_id}|{today_kst_str()}|{bucket}"
     if st.session_state.get("today_signature") != signature:
