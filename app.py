@@ -2,61 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
-import random
-from datetime import datetime, timedelta, timezone
-
-import streamlit as st
-import streamlit.components.v1 as components
-from supabase import create_client
-
-# ============================================================
-# ✅ Page
-# ============================================================
-st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
-
-# ============================================================
-# ✅ Supabase
-#   - Streamlit Cloud: st.secrets에 넣기
-#   - 로컬: .streamlit/secrets.toml에 넣기
-# ============================================================
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY", "")
-
-st.write("SUPABASE_URL =", SUPABASE_URL)
-
-if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-    st.error("st.secrets에 SUPABASE_URL / SUPABASE_ANON_KEY를 설정해 주세요.")
-    st.stop()
-
-sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-# ============================================================
-# ✅ Utils: Korea time (Asia/Seoul fixed offset)
-# ============================================================
-KST = timezone(timedelta(hours=9))
-
-
-def today_kst_str() -> str:
-    return datetime.now(KST).strftime("%Y-%m-%d")
-
-
-def stable_seed(*parts: str) -> int:
-    s = "|".join(parts)
-    h = hashlib.sha256(s.encode("utf-8")).hexdigest()
-    # 32-bit seed
-    return int(h[:8], 16)
-
-
-# ============================================================
-# ✅ Handwriting Canvas (원고지 격자 + 필기)
-#   - "필기 저장" 버튼 누르면 base64 PNG를 반환
-#   - ✅ 모바일에서도 가로로 길게(좌우 스크롤) 나오도록 수정
-# ============================================================
-# writing_app.py
-from __future__ import annotations
-
-import hashlib
 import random
 from datetime import datetime, timedelta, timezone
 
