@@ -38,8 +38,6 @@ div.stButton > button{
   min-width: 0 !important;
 }
 
-st.markdown(
-    """
 /* ✅ 모바일에서 좌우 여백(패딩) 때문에 버튼이 밀리는 경우가 많아서 줄여줌 */
 @media (max-width: 520px){
   section.main > div.block-container{
