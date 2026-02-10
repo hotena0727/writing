@@ -97,11 +97,6 @@ def ensure_sb_session():
             pass
 
 
-# ============================================================
-# ✅ Handwriting Canvas (원고지 격자 + 필기)
-#   - "필기 저장" 버튼 누르면 base64 PNG 반환
-#   - 모바일에서도 가로로 길게(좌우 스크롤)
-# ============================================================
 def handwriting_canvas(component_key: str, height: int = 240):
     html = r"""
 <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
@@ -125,26 +120,16 @@ def handwriting_canvas(component_key: str, height: int = 240):
       ">지우기</button>
     </div>
 
-    <!-- ✅ 모바일에서도 '가로로 길게' 보이게: 가로 스크롤 랩 -->
+    <!-- ✅ 스크롤 랩 제거 + 폭 100% -->
     <div style="margin-top:10px;">
-      <div id="__KEY___scrollwrap" style="
+      <canvas id="__KEY___canvas" style="
         width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
+        height: __H__px;
         border-radius: 14px;
-      ">
-        <div style="width: __CW__px; max-width: none;">
-          <canvas id="__KEY___canvas" style="
-            width: __CW__px;
-            height: __H__px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.02);
-            display:block;
-            touch-action: none;
-          "></canvas>
-        </div>
-      </div>
+        background: rgba(255,255,255,0.02);
+        display:block;
+        touch-action: none;
+      "></canvas>
     </div>
 
     <div style="margin-top:10px; display:flex; justify-content:flex-end;">
@@ -164,16 +149,19 @@ def handwriting_canvas(component_key: str, height: int = 240):
     const canvas = document.getElementById("__KEY___canvas");
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-    const dpr = window.devicePixelRatio || 1;
-    const cssWidth = canvas.clientWidth;
-    const cssHeight = canvas.clientHeight;
+    function resizeToCssSize(){
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const cssW = rect.width;
+      const cssH = rect.height;
 
-    canvas.width = Math.round(cssWidth * dpr);
-    canvas.height = Math.round(cssHeight * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
-    function cw() { return canvas.width / dpr; }
-    function ch() { return canvas.height / dpr; }
+    function cw() { return canvas.getBoundingClientRect().width; }
+    function ch() { return canvas.getBoundingClientRect().height; }
 
     function drawGrid() {
       const w = cw();
@@ -181,7 +169,7 @@ def handwriting_canvas(component_key: str, height: int = 240):
 
       const cols = 20;
       const cell = w / cols;
-      const rows = Math.min(6, Math.floor(h / cell));
+      const rows = Math.floor(h / cell);
 
       ctx.save();
       ctx.clearRect(0, 0, w, h);
@@ -208,7 +196,15 @@ def handwriting_canvas(component_key: str, height: int = 240):
       ctx.restore();
     }
 
+    // ✅ 초기 1회 리사이즈 후 그리드
+    resizeToCssSize();
     drawGrid();
+
+    // ✅ 회전/리사이즈 대응
+    window.addEventListener("resize", () => {
+      resizeToCssSize();
+      drawGrid();
+    });
 
     ctx.lineWidth = 7;
     ctx.lineCap = "round";
@@ -261,23 +257,16 @@ def handwriting_canvas(component_key: str, height: int = 240):
 
     document.getElementById("__KEY___done").addEventListener("click", () => {
       const png = canvas.toDataURL("image/png");
-      const payload = { png_b64: png };
       window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload },
+        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { png_b64: png } },
         "*"
       );
     });
   </script>
 </div>
 """
-    canvas_width_px = 1200
-    html = (
-        html.replace("__KEY__", component_key)
-        .replace("__H__", str(height))
-        .replace("__CW__", str(canvas_width_px))
-    )
+    html = html.replace("__KEY__", component_key).replace("__H__", str(height))
     return components.html(html, height=height + 130, scrolling=False)
-
 
 # ============================================================
 # ✅ Auth UI
