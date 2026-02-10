@@ -447,6 +447,7 @@ def main_app():
 
     user = st.session_state.user
     user_id = str(user.id)
+    
     user_email = user.email or ""
 
     st.title("📝 한자 쓰기 (자기 채점)")
@@ -532,19 +533,18 @@ def main_app():
 
     st.divider()
 
-action = two_action_buttons(f"act_{qid}_{idx}")
+    action = two_action_buttons(f"act_{qid}_{idx}")
 
-if action == "check":
-    st.session_state.revealed = True
-    st.rerun()
+    if action == "check":
+        st.session_state.revealed = True
+        st.rerun()
 
-elif action == "next":
-    st.session_state.idx = idx + 1
-    st.session_state.revealed = False
-    st.session_state.last_canvas = None
-    st.rerun()
-
-
+    elif action == "next":
+        st.session_state.idx = idx + 1
+        st.session_state.revealed = False
+        st.session_state.last_canvas = None
+        st.rerun()
+    
     if st.session_state.get("revealed", False):
         st.markdown("### ✅ 정답")
         st.markdown(f"**{answer_kanji}**")
