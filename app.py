@@ -19,7 +19,6 @@ st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 #   - "채점 / 다음 문제"를 모바일에서도 무조건 한 줄 2개로 고정
 #   - (필요하면 "정답 / 오답"도 같은 방식으로 한 줄 고정 가능)
 # ============================================================
-st.write("RUNNING FILE:", __file__)
 st.markdown(
     """
 <style>
@@ -97,6 +96,12 @@ def ensure_sb_session():
             # 세션이 만료/깨졌을 수 있으니 조용히 패스
             pass
 
+
+# ============================================================
+# ✅ Handwriting Canvas (원고지 격자 + 필기)
+#   - "필기 저장" 버튼 누르면 base64 PNG 반환
+#   - 모바일에서도 가로로 길게(좌우 스크롤)
+# ============================================================
 def two_action_buttons(component_key: str):
     html = r"""
 <div style="width:100%; display:flex; gap:0.45rem;">
@@ -134,199 +139,20 @@ def two_action_buttons(component_key: str):
 </div>
 
 <script>
-  function go(action){
-    const url = new URL(window.parent.location.href);
-    url.searchParams.set("kw_action", action);
-    url.searchParams.set("kw_key", "__KEY__");
-    window.parent.location.href = url.toString();
-  }
-  document.getElementById("__KEY___check").addEventListener("click", () => go("check"));
-  document.getElementById("__KEY___next").addEventListener("click", () => go("next"));
+  const send = (action) => {
+    window.parent.postMessage(
+      { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { action } },
+      "*"
+    );
+  };
+
+  document.getElementById("__KEY___check").addEventListener("click", () => send("check"));
+  document.getElementById("__KEY___next").addEventListener("click", () => send("next"));
 </script>
 """
     html = html.replace("__KEY__", component_key)
     return components.html(html, height=70, scrolling=False)
 
-
-# ============================================================
-# ✅ Handwriting Canvas (원고지 격자 + 필기)
-#   - "필기 저장" 버튼 누르면 base64 PNG 반환
-#   - 모바일에서도 가로로 길게(좌우 스크롤)
-# ============================================================
-def handwriting_canvas(component_key: str, height: int = 320):
-    html = r"""
-<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-  <div style="
-    width: 100%;
-    border: 2px solid rgba(120,120,120,0.22);
-    border-radius: 18px;
-    background: rgba(255,255,255,0.02);
-    padding: 12px;
-    box-sizing: border-box;
-  ">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <div style="font-weight:900; opacity:0.75;">✍️ 여기 한자를 써 보세요</div>
-      <button id="__KEY___clear" style="
-        border:1px solid rgba(120,120,120,0.25);
-        background: rgba(255,255,255,0.03);
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-weight:900;
-        cursor:pointer;
-      ">지우기</button>
-    </div>
-
-    <div style="margin-top:10px;">
-      <div id="__KEY___scrollwrap" style="
-        width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        border-radius: 14px;
-      ">
-        <div style="width: __CW__px; max-width: none;">
-          <canvas id="__KEY___canvas" style="
-            width: __CW__px;
-            height: __H__px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.02);
-            display:block;
-            touch-action: none;
-          "></canvas>
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-      <button id="__KEY___done" style="
-        border:0;
-        background: rgba(0,0,0,0.75);
-        color:white;
-        border-radius: 12px;
-        padding: 10px 14px;
-        font-weight:900;
-        cursor:pointer;
-      ">필기 저장</button>
-    </div>
-  </div>
-
-  <script>
-    const canvas = document.getElementById("__KEY___canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-    const dpr = window.devicePixelRatio || 1;
-    const cssWidth = canvas.clientWidth;
-    const cssHeight = canvas.clientHeight;
-
-    canvas.width = Math.round(cssWidth * dpr);
-    canvas.height = Math.round(cssHeight * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    function cw() { return canvas.width / dpr; }
-    function ch() { return canvas.height / dpr; }
-
-    function drawGrid() {
-      const w = cw();
-      const h = ch();
-
-      const cols = 20;
-      const cell = w / cols;
-      const rows = Math.floor(h / cell);
-
-      ctx.save();
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "rgba(255,255,255,0.02)";
-      ctx.fillRect(0, 0, w, h);
-
-      ctx.globalAlpha = 0.22;
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(0,0,0,0.25)";
-      const off = 0.5;
-
-      ctx.beginPath();
-      for (let c = 0; c <= cols; c++) {
-        const x = c * cell;
-        ctx.moveTo(x + off, 0);
-        ctx.lineTo(x + off, h);
-      }
-      for (let r = 0; r <= rows; r++) {
-        const y = r * cell;
-        ctx.moveTo(0, y + off);
-        ctx.lineTo(w, y + off);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    drawGrid();
-
-    ctx.lineWidth = 7;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(0,0,0,0.92)";
-
-    let drawing = false;
-
-    function getPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const touch = e.touches && e.touches[0];
-      const clientX = touch ? touch.clientX : e.clientX;
-      const clientY = touch ? touch.clientY : e.clientY;
-      return { x: clientX - rect.left, y: clientY - rect.top };
-    }
-
-    function start(e) {
-      e.preventDefault();
-      drawing = true;
-      const p = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-    }
-
-    function move(e) {
-      if (!drawing) return;
-      e.preventDefault();
-      const p = getPos(e);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-    }
-
-    function end(e) {
-      if (!drawing) return;
-      e.preventDefault();
-      drawing = false;
-    }
-
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", end);
-
-    canvas.addEventListener("touchstart", start, { passive: false });
-    canvas.addEventListener("touchmove", move, { passive: false });
-    window.addEventListener("touchend", end, { passive: false });
-
-    document.getElementById("__KEY___clear").addEventListener("click", () => {
-      drawGrid();
-    });
-
-    document.getElementById("__KEY___done").addEventListener("click", () => {
-      const png = canvas.toDataURL("image/png");
-      const payload = { png_b64: png };
-      window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload },
-        "*"
-      );
-    });
-  </script>
-</div>
-"""
-    canvas_width_px = 1200
-    html = (
-        html.replace("__KEY__", component_key)
-        .replace("__H__", str(height))
-        .replace("__CW__", str(canvas_width_px))
-    )
-    return components.html(html, height=height + 130, scrolling=False)
 
 # ============================================================
 # ✅ Auth UI
@@ -536,28 +362,20 @@ def main_app():
 
     st.divider()
 
-    # ✅ (A) 먼저: URL 쿼리파라미터로 들어온 액션 처리
-    qp = st.query_params
-    kw_action = qp.get("kw_action", None)
-    kw_key = qp.get("kw_key", None)
-
-    # ✅ 현재 문제용 key (다른 문제에서 눌린 action이 섞이지 않게)
+    # ✅ 채점 / 다음 문제: HTML flex 버튼 (모바일에서도 무조건 1줄 2개)
     btn_key = f"kw_btns_{today_kst_str()}_{bucket}_{qid}_{idx}"
+    btn_payload = two_action_buttons(btn_key)
 
-    if kw_action and kw_key == btn_key:
-        # 처리 후 쿼리파라미터 제거(무한 반복 방지)
-        st.query_params.clear()
-        if kw_action == "check":
+    if btn_payload and isinstance(btn_payload, dict):
+        action = btn_payload.get("action")
+        if action == "check":
             st.session_state.revealed = True
             st.rerun()
-        elif kw_action == "next":
+        elif action == "next":
             st.session_state.idx = idx + 1
             st.session_state.revealed = False
             st.session_state.last_canvas = None
             st.rerun()
-
-    # ✅ (B) 버튼 렌더링: 모바일에서도 무조건 1줄 2개
-    two_action_buttons(btn_key)
 
     # ✅ 정답 공개 이후: 스스로 정/오 체크
     if st.session_state.get("revealed", False):
