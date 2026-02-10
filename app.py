@@ -14,25 +14,38 @@ from supabase import create_client
 # ============================================================
 st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 
-# ✅ 모바일에서도 "두 버튼 한 줄" 강제 + 버튼 글자 줄바꿈 방지
+# ============================================================
+# ✅ Mobile CSS fixes
+#   1) 두 버튼 한 줄 유지 + "잘림" 방지 (min-width, gap, padding 줄이기)
+# ============================================================
 st.markdown(
     """
 <style>
-/* 두 컬럼(버튼 줄)이 모바일에서 줄바꿈(세로 스택) 되는 걸 방지 */
+/* ✅ 컬럼 컨테이너가 줄바꿈되거나 밖으로 밀리는 걸 방지 */
 div[data-testid="stHorizontalBlock"]{
   flex-wrap: nowrap !important;
-  gap: 0.75rem !important;
+  gap: 0.5rem !important;
 }
 
-/* 버튼 텍스트 줄바꿈 방지 + 모바일에서 살짝 작게 */
+/* ✅ 각 column이 내용 때문에 최소폭을 크게 잡아 overflow 되는 걸 방지 */
+div[data-testid="column"]{
+  min-width: 0 !important;
+}
+
+/* ✅ 버튼 텍스트 줄바꿈 방지 + 최소폭 제거 */
 div.stButton > button{
   white-space: nowrap !important;
+  min-width: 0 !important;
 }
+
+/* ✅ 모바일에서 더 작게(잘림 방지 핵심) */
 @media (max-width: 520px){
+  div[data-testid="stHorizontalBlock"]{
+    gap: 0.35rem !important;
+  }
   div.stButton > button{
-    font-size: 0.98rem !important;
-    padding-top: 0.85rem !important;
-    padding-bottom: 0.85rem !important;
+    font-size: 0.90rem !important;
+    padding: 0.75rem 0.55rem !important;
   }
 }
 </style>
@@ -70,27 +83,15 @@ def stable_seed(*parts: str) -> int:
 
 # ============================================================
 # ✅ Handwriting Canvas (원고지 격자 + 필기)
-#   - ✅ 모바일에서 가로로 더 길게(160vw) + 좌우 스크롤
-#   - ✅ 오른쪽/아래 끝선 잘림 방지
-#   - ✅ 중요: components.html(..., scrolling=True)
+#   ✅ 핵심 변경:
+#   - 모바일에서도 확실히 "가로로 긴 원고지"가 되도록
+#     -> vw/media query 대신 "고정 폭(px)" 사용 + 가로 스크롤
+#   - iframe 안에서도 무조건 적용됨
 # ============================================================
 def handwriting_canvas(component_key: str, height: int = 320):
     html = r"""
 <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
   <style>
-    .kw-canvas {
-      width: 100%;
-      height: __H__px;
-      display: block;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.02);
-      touch-action: none;
-    }
-    /* 모바일: 가로로 길게 펼치기 */
-    @media (max-width: 768px){
-      .kw-canvas { width: 160vw; }
-    }
-
     .kw-wrap{
       width: 100%;
       border: 2px solid rgba(120,120,120,0.22);
@@ -110,7 +111,8 @@ def handwriting_canvas(component_key: str, height: int = 320):
       cursor:pointer;
       white-space: nowrap;
     }
-    /* 가로 스크롤 컨테이너 */
+
+    /* ✅ 스크롤 컨테이너 (가로로 긴 원고지) */
     .kw-scroll{
       margin-top:10px;
       width:100%;
@@ -119,6 +121,25 @@ def handwriting_canvas(component_key: str, height: int = 320):
       -webkit-overflow-scrolling: touch;
       border-radius:14px;
     }
+
+    /* ✅ "항상" 가로로 긴 캔버스: 기본은 100%지만, min-width로 강제 확장 */
+    .kw-canvas{
+      height: __H__px;
+      display:block;
+      border-radius:14px;
+      background: rgba(255,255,255,0.02);
+      touch-action:none;
+
+      /* ✅ 여기서 가로 길이를 결정 */
+      width: 100%;
+      min-width: 1100px;   /* 데스크탑/모바일 모두 '가로 원고지' 느낌 */
+    }
+
+    /* ✅ 작은 모바일일수록 좀 더 길게(원하면 1200~1600으로 올려도 됨) */
+    @media (max-width: 520px){
+      .kw-canvas{ min-width: 1200px; }
+    }
+
     .kw-bottom{ margin-top:10px; display:flex; justify-content:flex-end; }
     .kw-save{
       border:0;
@@ -184,7 +205,6 @@ def handwriting_canvas(component_key: str, height: int = 320):
       const off = 0.5;
       ctx.beginPath();
 
-      // ✅ 마지막 선은 w-off 안쪽으로(잘림 방지)
       for(let c=0; c<=cols; c++){
         const rawX = c * cell;
         const x = (c === cols) ? (w - off) : (rawX + off);
@@ -192,7 +212,6 @@ def handwriting_canvas(component_key: str, height: int = 320):
         ctx.lineTo(x, h);
       }
 
-      // ✅ 마지막 선은 h-off 안쪽으로(잘림 방지)
       for(let r=0; r<=rows; r++){
         const rawY = r * cell;
         const y = (r === rows) ? (h - off) : (rawY + off);
@@ -272,7 +291,7 @@ def handwriting_canvas(component_key: str, height: int = 320):
 </div>
 """
     html = html.replace("__KEY__", component_key).replace("__H__", str(height))
-    # ✅ scrolling=True : 모바일에서 내부 가로 스크롤이 실제로 동작하게
+    # ✅ iframe 내부 가로 스크롤이 안정적으로 동작하도록
     return components.html(html, height=height + 140, scrolling=True)
 
 
@@ -455,16 +474,13 @@ def main_app():
     canvas_key = f"canvas_{today_kst_str()}_{bucket}_{qid}_{idx}"
     canvas_payload = handwriting_canvas(canvas_key, height=320)
 
-    # ✅ "필기 저장" 눌렀을 때만 값이 들어옴
     if canvas_payload and isinstance(canvas_payload, dict) and canvas_payload.get("png_b64"):
         st.session_state.last_canvas = canvas_payload.get("png_b64")
         st.toast("필기 저장됨", icon="✍️")
 
     st.divider()
 
-    # ============================================================
-    # ✅ 채점 / 다음 문제 (모바일에서도 한 줄)
-    # ============================================================
+    # ✅ 채점 / 다음 문제 (모바일에서도 한 줄 + 잘림 방지 CSS 적용됨)
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🟦 채점", use_container_width=True, key=f"btn_check_{qid}_{idx}"):
@@ -478,9 +494,6 @@ def main_app():
             st.session_state.last_canvas = None
             st.rerun()
 
-    # ============================================================
-    # ✅ 정답 표시 + 정/오 (모바일에서도 한 줄)
-    # ============================================================
     if st.session_state.get("revealed", False):
         st.markdown("### ✅ 정답")
         st.markdown(f"**{answer_kanji}**")
