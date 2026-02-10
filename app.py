@@ -21,58 +21,54 @@ st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 st.markdown(
     """
 <style>
-/* ✅ 컬럼 컨테이너가 줄바꿈되거나 밖으로 밀리는 걸 방지 */
-div[data-testid="stHorizontalBlock"]{
-  flex-wrap: nowrap !important;
-  gap: 0.5rem !important;
-}
+/* ===============================
+   ✅ 모바일에서 버튼 2개가 "한 줄" + "화면 안"에 들어오게
+   핵심: column min-width=0, 부모 overflow 숨김, 버튼 폰트/패딩 자동축소
+================================ */
 
-/* ✅ 각 column이 내용 때문에 최소폭을 크게 잡아 overflow 되는 걸 방지 */
-div[data-testid="column"]{
-  min-width: 0 !important;
-}
-
-/* ✅ 버튼 텍스트 줄바꿈 방지 + 최소폭 제거 */
-div.stButton > button{
-  white-space: nowrap !important;
-  min-width: 0 !important;
-}
-
-/* ✅ 모바일에서 좌우 여백(패딩) 때문에 버튼이 밀리는 경우가 많아서 줄여줌 */
+/* ✅ 전체 컨테이너 좌우 패딩(기본이 커서 버튼이 밀림) */
 @media (max-width: 520px){
   section.main > div.block-container{
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
+    padding-left: 0.6rem !important;
+    padding-right: 0.6rem !important;
   }
 }
 
-/* ✅ 컬럼 줄바꿈/간격 최소화 */
+/* ✅ columns(수평 블록) 자체가 화면 밖으로 튀어나가는 걸 차단 */
 div[data-testid="stHorizontalBlock"]{
   flex-wrap: nowrap !important;
-  gap: 0.4rem !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;   /* ✅ 밖으로 밀리면 잘라서라도 화면 밖으로 안 나가게 */
 }
 
-/* ✅ column이 내용 때문에 최소 폭을 크게 잡지 못하게 */
+/* ✅ column이 내용 때문에 최소폭을 크게 잡지 못하게 (이게 제일 중요) */
 div[data-testid="column"]{
   min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
-/* ✅ 버튼이 컬럼 폭 안에서 꽉 차게 + 글자 줄바꿈 금지 + 길면 살짝 줄이기 */
+/* ✅ 버튼이 column 폭에 맞춰 "정확히" 줄어들게 */
 div.stButton > button{
   width: 100% !important;
   min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
 
-  /* ✅ 화면 폭에 따라 자동 축소: 핵심 */
-  font-size: clamp(12px, 3.2vw, 16px) !important;
-  padding: clamp(10px, 2.8vw, 14px) clamp(8px, 2.4vw, 12px) !important;
+  /* ✅ 화면 폭에 따라 폰트/패딩 자동 축소 */
+  font-size: clamp(12px, 3.4vw, 16px) !important;
+  padding: clamp(10px, 2.8vw, 14px) clamp(8px, 2.2vw, 12px) !important;
 }
 
-/* ✅ 더 작은 기기에서 gap/패딩을 더 줄여서 ‘무조건’ 들어오게 */
+/* ✅ 초소형 기기(아이폰 SE 급)에서 더 줄여서 무조건 들어오게 */
 @media (max-width: 360px){
-  div[data-testid="stHorizontalBlock"]{ gap: 0.25rem !important; }
+  div[data-testid="stHorizontalBlock"]{ gap: 0.22rem !important; }
   div.stButton > button{
     font-size: 12px !important;
     padding: 10px 8px !important;
