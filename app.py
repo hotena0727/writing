@@ -51,6 +51,7 @@ def stable_seed(*parts: str) -> int:
 # ============================================================
 # ✅ Handwriting Canvas (원고지 격자 + 필기)
 #   - "필기 저장" 버튼 누르면 base64 PNG를 반환
+#   - ✅ 모바일에서도 가로로 길게(좌우 스크롤) 나오도록 수정
 # ============================================================
 def handwriting_canvas(component_key: str, height: int = 320):
     # f-string을 쓰지 않고, 치환 토큰만 replace로 바꿔서
@@ -77,14 +78,26 @@ def handwriting_canvas(component_key: str, height: int = 320):
       ">지우기</button>
     </div>
 
-    <div style="margin-top:10px; position:relative;">
-      <canvas id="__KEY___canvas" style="
+    <!-- ✅ 모바일에서도 '가로로 길게' 보이게: 가로 스크롤 랩 -->
+    <div style="margin-top:10px;">
+      <div id="__KEY___scrollwrap" style="
         width: 100%;
-        height: __H__px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
         border-radius: 14px;
-        background: rgba(255,255,255,0.02);
-        display:block;
-      "></canvas>
+      ">
+        <div style="width: __CW__px; max-width: none;">
+          <canvas id="__KEY___canvas" style="
+            width: __CW__px;
+            height: __H__px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.02);
+            display:block;
+            touch-action: none;
+          "></canvas>
+        </div>
+      </div>
     </div>
 
     <div style="margin-top:10px; display:flex; justify-content:flex-end;">
@@ -106,6 +119,7 @@ def handwriting_canvas(component_key: str, height: int = 320):
 
     const dpr = window.devicePixelRatio || 1;
 
+    // ✅ canvas의 CSS 크기(고정 폭 __CW__px) 기준으로 실제 픽셀 세팅
     const cssWidth = canvas.clientWidth;
     const cssHeight = canvas.clientHeight;
 
@@ -122,7 +136,7 @@ def handwriting_canvas(component_key: str, height: int = 320):
       const w = cw();
       const h = ch();
 
-      // ✅ 화면 폭을 cols로 정확히 나눔 → 오른쪽 절대 안 잘림
+      // ✅ 가로 칸 수 고정 → 끝선 정확히 맞춰짐(잘림 방지)
       const cols = 20;
       const cell = w / cols;
       const rows = Math.floor(h / cell);
@@ -224,8 +238,16 @@ def handwriting_canvas(component_key: str, height: int = 320):
 </div>
 """
 
-    html = html.replace("__KEY__", component_key).replace("__H__", str(height))
+    # ✅ 캔버스 고정 폭(모바일에서 '가로로 길게' 보이게)
+    canvas_width_px = 1200
+
+    html = (
+        html.replace("__KEY__", component_key)
+        .replace("__H__", str(height))
+        .replace("__CW__", str(canvas_width_px))
+    )
     return components.html(html, height=height + 130, scrolling=False)
+
 
 # ============================================================
 # ✅ Auth UI
@@ -280,6 +302,7 @@ def fetch_sentences(bucket: str):
     )
     st.write("DEBUG fetch:", bucket, "count=", len(res.data or []), "error=", getattr(res, "error", None))
     return res.data or []
+
 
 def fetch_attempted_qids(user_id: str, bucket: str):
     res = (
@@ -368,7 +391,9 @@ def main_app():
             st.rerun()
 
     with top[1]:
-        save_drawing = st.toggle("필기 이미지 저장", value=False, help="ON이면 필기 PNG(base64)를 DB에 저장합니다. (DB 용량 주의)")
+        save_drawing = st.toggle(
+            "필기 이미지 저장", value=False, help="ON이면 필기 PNG(base64)를 DB에 저장합니다. (DB 용량 주의)"
+        )
 
     st.divider()
 
@@ -445,66 +470,95 @@ def main_app():
 
     st.divider()
 
-    # 채점/정답 표시
-    cols = st.columns([1, 1])
-    with cols[0]:
-        if st.button("🟦 채점 (정답 보기)", use_container_width=True):
-            st.session_state.revealed = True
+    # ✅ [수정] 채점/다음 버튼을 "한 줄"로 고정 (모바일에서도 한 줄)
+    st.markdown(
+        """
+<style>
+/* 이 컨테이너 안의 2개 버튼을 무조건 한 줄로 */
+.kww-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.kww-row > div {
+  flex: 1 1 0;
+}
+.kww-row .stButton > button {
+  width: 100% !important;
+  white-space: nowrap !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
 
-    with cols[1]:
-        if st.button("⏭️ 다음 문제로", use_container_width=True):
-            st.session_state.idx = idx + 1
-            st.session_state.revealed = False
-            st.session_state.last_canvas = None
-            st.rerun()
+    c1, c2 = st.columns(2)
+    with c1:
+        btn_grade = st.button("🟦 채점 (정답 보기)", use_container_width=True)
+    with c2:
+        btn_next = st.button("⏭️ 다음 문제로", use_container_width=True)
+
+    if btn_grade:
+        st.session_state.revealed = True
+
+    if btn_next:
+        st.session_state.idx = idx + 1
+        st.session_state.revealed = False
+        st.session_state.last_canvas = None
+        st.rerun()
 
     if st.session_state.get("revealed", False):
         st.markdown("### ✅ 정답")
         st.markdown(f"**{answer_kanji}**")
         st.caption("정답을 확인했으면 아래에서 스스로 정/오를 선택해 주세요.")
 
-        gcols = st.columns(2)
-        with gcols[0]:
-            if st.button("⭕ 정답", use_container_width=True, type="primary"):
-                try:
-                    insert_attempt(
-                        user_id=user_id,
-                        user_email=user_email,
-                        qid=qid,
-                        bucket=bucket,
-                        level=level,
-                        self_grade="correct",
-                        drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
-                    )
-                except Exception as e:
-                    st.error(f"저장 실패: {e}")
-                    st.stop()
+        # ✅ [수정] 정답/오답 버튼도 "한 줄"로 고정 (모바일에서도 한 줄)
+        g1, g2 = st.columns(2)
 
-                st.session_state.idx = idx + 1
-                st.session_state.revealed = False
-                st.session_state.last_canvas = None
-                st.rerun()
+        with g1:
+            btn_correct = st.button("⭕ 정답", use_container_width=True, type="primary")
+        with g2:
+            btn_wrong = st.button("❌ 오답", use_container_width=True)
 
-        with gcols[1]:
-            if st.button("❌ 오답", use_container_width=True):
-                try:
-                    insert_attempt(
-                        user_id=user_id,
-                        user_email=user_email,
-                        qid=qid,
-                        bucket=bucket,
-                        level=level,
-                        self_grade="wrong",
-                        drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
-                    )
-                except Exception as e:
-                    st.error(f"저장 실패: {e}")
-                    st.stop()
+        if btn_correct:
+            try:
+                insert_attempt(
+                    user_id=user_id,
+                    user_email=user_email,
+                    qid=qid,
+                    bucket=bucket,
+                    level=level,
+                    self_grade="correct",
+                    drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
+                )
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
+                st.stop()
 
-                st.session_state.idx = idx + 1
-                st.session_state.revealed = False
-                st.session_state.last_canvas = None
-                st.rerun()
+            st.session_state.idx = idx + 1
+            st.session_state.revealed = False
+            st.session_state.last_canvas = None
+            st.rerun()
+
+        if btn_wrong:
+            try:
+                insert_attempt(
+                    user_id=user_id,
+                    user_email=user_email,
+                    qid=qid,
+                    bucket=bucket,
+                    level=level,
+                    self_grade="wrong",
+                    drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
+                )
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
+                st.stop()
+
+            st.session_state.idx = idx + 1
+            st.session_state.revealed = False
+            st.session_state.last_canvas = None
+            st.rerun()
 
 
 # ============================================================
