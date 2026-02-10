@@ -428,13 +428,10 @@ def main_app():
     # 문제 표시
     st.markdown("#### Q.")
     st.markdown(f"**{sentence}**")
-    st.caption(f"괄호 안 단어: {target_kana}   ·   내부 레벨: {level}")
 
     if note:
         with st.expander("힌트/노트"):
             st.write(note)
-
-    st.divider()
 
     # 필기
     st.markdown("#### 필기")
