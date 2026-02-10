@@ -102,56 +102,150 @@ def ensure_sb_session():
 #   - "필기 저장" 버튼 누르면 base64 PNG 반환
 #   - 모바일에서도 가로로 길게(좌우 스크롤)
 # ============================================================
-def two_action_buttons(component_key: str):
+def handwriting_canvas(component_key: str, height: int = 320):
     html = r"""
-<div style="width:100%; display:flex; gap:0.45rem;">
-  <button id="__KEY___check" style="
-    flex:1 1 0; min-width:0;
-    width:100%;
-    border:0;
-    background: rgba(30, 90, 200, 0.92);
-    color:white;
-    border-radius: 12px;
-    padding: 12px 10px;
-    font-weight:900;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    cursor:pointer;
-    font-size: clamp(12px, 3.2vw, 16px);
-  ">🟦 채점</button>
+<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
+  <div style="
+    width: 100%;
+    border: 2px solid rgba(120,120,120,0.22);
+    border-radius: 18px;
+    background: rgba(255,255,255,0.02);
+    padding: 12px;
+    box-sizing: border-box;
+  ">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <div style="font-weight:900; opacity:0.75;">✍️ 여기 한자를 써 보세요</div>
+      <button id="__KEY___clear" style="
+        border:1px solid rgba(120,120,120,0.25);
+        background: rgba(255,255,255,0.03);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-weight:900;
+        cursor:pointer;
+      ">지우기</button>
+    </div>
 
-  <button id="__KEY___next" style="
-    flex:1 1 0; min-width:0;
-    width:100%;
-    border:0;
-    background: rgba(0,0,0,0.75);
-    color:white;
-    border-radius: 12px;
-    padding: 12px 10px;
-    font-weight:900;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    cursor:pointer;
-    font-size: clamp(12px, 3.2vw, 16px);
-  ">⏭️ 다음 문제</button>
-</div>
+    <!-- ✅ 모바일에서도 '가로로 길게' 보이게: 가로 스크롤 랩 -->
+    <div style="margin-top:10px;">
+      <div id="__KEY___scrollwrap" style="
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 14px;
+      ">
+        <div style="width: __CW__px; max-width: none;">
+          <canvas id="__KEY___canvas" style="
+            width: __CW__px;
+            height: __H__px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.02);
+            display:block;
+            touch-action: none;
+          "></canvas>
+        </div>
+      </div>
+    </div>
 
-<script>
-  const send = (action) => {
-    window.parent.postMessage(
-      { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { action } },
-      "*"
-    );
-  };
+    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+      <button id="__KEY___done" style="
+        border:0;
+        background: rgba(0,0,0,0.75);
+        color:white;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-weight:900;
+        cursor:pointer;
+      ">필기 저장</button>
+    </div>
+  </div>
 
-  document.getElementById("__KEY___check").addEventListener("click", () => send("check"));
-  document.getElementById("__KEY___next").addEventListener("click", () => send("next"));
-</script>
-"""
-    html = html.replace("__KEY__", component_key)
-    return components.html(html, height=70, scrolling=False)
+  <script>
+    const canvas = document.getElementById("__KEY___canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = canvas.clientWidth;
+    const cssHeight = canvas.clientHeight;
+
+    canvas.width = Math.round(cssWidth * dpr);
+    canvas.height = Math.round(cssHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    function cw() { return canvas.width / dpr; }
+    function ch() { return canvas.height / dpr; }
+
+    function drawGrid() {
+      const w = cw();
+      const h = ch();
+
+      const cols = 20;
+      const cell = w / cols;
+      const rows = Math.floor(h / cell);
+
+      ctx.save();
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "rgba(255,255,255,0.02)";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.globalAlpha = 0.22;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      const off = 0.5;
+
+      ctx.beginPath();
+      for (let c = 0; c <= cols; c++) {
+        const x = c * cell;
+        ctx.moveTo(x + off, 0);
+        ctx.lineTo(x + off, h);
+      }
+      for (let r = 0; r <= rows; r++) {
+        const y = r * cell;
+        ctx.moveTo(0, y + off);
+        ctx.lineTo(w, y + off);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawGrid();
+
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(0,0,0,0.92)";
+
+    let drawing = false;
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches && e.touches[0];
+      const clientX = touch ? touch.clientX : e.clientX;
+      const clientY = touch ? touch.clientY : e.clientY;
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function start(e) {
+      e.preventDefault();
+      drawing = true;
+      const p = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }
+
+    function move(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const p = getPos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+
+    function end(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      d
+
 
 
 # ============================================================
@@ -362,20 +456,28 @@ def main_app():
 
     st.divider()
 
-    # ✅ 채점 / 다음 문제: HTML flex 버튼 (모바일에서도 무조건 1줄 2개)
-    btn_key = f"kw_btns_{today_kst_str()}_{bucket}_{qid}_{idx}"
-    btn_payload = two_action_buttons(btn_key)
+    # ✅ (A) 먼저: URL 쿼리파라미터로 들어온 액션 처리
+    qp = st.query_params
+    kw_action = qp.get("kw_action", None)
+    kw_key = qp.get("kw_key", None)
 
-    if btn_payload and isinstance(btn_payload, dict):
-        action = btn_payload.get("action")
-        if action == "check":
+    # ✅ 현재 문제용 key (다른 문제에서 눌린 action이 섞이지 않게)
+    btn_key = f"kw_btns_{today_kst_str()}_{bucket}_{qid}_{idx}"
+
+    if kw_action and kw_key == btn_key:
+        # 처리 후 쿼리파라미터 제거(무한 반복 방지)
+        st.query_params.clear()
+        if kw_action == "check":
             st.session_state.revealed = True
             st.rerun()
-        elif action == "next":
+        elif kw_action == "next":
             st.session_state.idx = idx + 1
             st.session_state.revealed = False
             st.session_state.last_canvas = None
             st.rerun()
+
+    # ✅ (B) 버튼 렌더링: 모바일에서도 무조건 1줄 2개
+    two_action_buttons(btn_key)
 
     # ✅ 정답 공개 이후: 스스로 정/오 체크
     if st.session_state.get("revealed", False):
