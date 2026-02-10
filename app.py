@@ -181,7 +181,7 @@ def handwriting_canvas(component_key: str, height: int = 240):
 
       const cols = 20;
       const cell = w / cols;
-      const rows = Math.floor(h / cell);
+      const rows = Math.min(5, Math.floor(h / cell));
 
       ctx.save();
       ctx.clearRect(0, 0, w, h);
