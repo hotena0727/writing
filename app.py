@@ -275,55 +275,6 @@ def handwriting_canvas(component_key: str, height: int = 320):
     return components.html(html, height=height + 130, scrolling=False)
 
 
-def two_action_buttons(key_prefix: str):
-    html = r"""
-    <div style="
-      display:flex;
-      gap:0.5rem;
-      width:100%;
-      flex-wrap:nowrap;
-    ">
-      <button id="__K__check" style="
-        flex:1;
-        border:0;
-        background:#2563eb;
-        color:white;
-        border-radius:12px;
-        padding:12px 10px;
-        font-weight:800;
-        white-space:nowrap;
-      ">🟦 채점</button>
-
-      <button id="__K__next" style="
-        flex:1;
-        border:0;
-        background:#374151;
-        color:white;
-        border-radius:12px;
-        padding:12px 10px;
-        font-weight:800;
-        white-space:nowrap;
-      ">⏭️ 다음 문제</button>
-    </div>
-
-    <script>
-      document.getElementById("__K__check").onclick = () => {
-        window.parent.postMessage(
-          { type: "STREAMLIT_SET_COMPONENT_VALUE", value: "check" },
-          "*"
-        );
-      };
-      document.getElementById("__K__next").onclick = () => {
-        window.parent.postMessage(
-          { type: "STREAMLIT_SET_COMPONENT_VALUE", value: "next" },
-          "*"
-        );
-      };
-    </script>
-    """
-    html = html.replace("__K__", key_prefix)
-    return components.html(html, height=64)
-
 # ============================================================
 # ✅ Auth UI
 # ============================================================
@@ -532,18 +483,23 @@ def main_app():
 
     st.divider()
 
-action = two_action_buttons(f"act_{qid}_{idx}")
+    # ✅ 채점 / 다음 문제 (모바일에서도 무조건 한 줄 고정)
+    st.markdown('<div class="kw-two-btn-row">', unsafe_allow_html=True)
 
-if action == "check":
-    st.session_state.revealed = True
-    st.rerun()
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🟦 채점", use_container_width=True, key=f"btn_check_{qid}_{idx}"):
+            st.session_state.revealed = True
+            st.rerun()
 
-elif action == "next":
-    st.session_state.idx = idx + 1
-    st.session_state.revealed = False
-    st.session_state.last_canvas = None
-    st.rerun()
+    with c2:
+        if st.button("⏭️ 다음 문제", use_container_width=True, key=f"btn_next_{qid}_{idx}"):
+            st.session_state.idx = idx + 1
+            st.session_state.revealed = False
+            st.session_state.last_canvas = None
+            st.rerun()
 
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if st.session_state.get("revealed", False):
         st.markdown("### ✅ 정답")
