@@ -1,4 +1,3 @@
-# writing_app.py
 from __future__ import annotations
 
 import hashlib
@@ -10,77 +9,12 @@ import streamlit.components.v1 as components
 from supabase import create_client
 
 # ============================================================
-# ✅ Page
+# Page
 # ============================================================
 st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 
 # ============================================================
-# ✅ Mobile CSS fixes
-#   1) 두 버튼 한 줄 유지 + "잘림" 방지 (min-width, gap, padding 줄이기)
-# ============================================================
-st.markdown(
-    """
-<style>
-/* ===============================
-   ✅ 모바일에서 버튼 2개가 "한 줄" + "화면 안"에 들어오게
-   핵심: column min-width=0, 부모 overflow 숨김, 버튼 폰트/패딩 자동축소
-================================ */
-
-/* ✅ 전체 컨테이너 좌우 패딩(기본이 커서 버튼이 밀림) */
-@media (max-width: 520px){
-  section.main > div.block-container{
-    padding-left: 0.6rem !important;
-    padding-right: 0.6rem !important;
-  }
-}
-
-/* ✅ columns(수평 블록) 자체가 화면 밖으로 튀어나가는 걸 차단 */
-div[data-testid="stHorizontalBlock"]{
-  flex-wrap: nowrap !important;
-  gap: 0.35rem !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow: hidden !important;   /* ✅ 밖으로 밀리면 잘라서라도 화면 밖으로 안 나가게 */
-}
-
-/* ✅ column이 내용 때문에 최소폭을 크게 잡지 못하게 (이게 제일 중요) */
-div[data-testid="column"]{
-  min-width: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* ✅ 버튼이 column 폭에 맞춰 "정확히" 줄어들게 */
-div.stButton > button{
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-
-  /* ✅ 화면 폭에 따라 폰트/패딩 자동 축소 */
-  font-size: clamp(12px, 3.4vw, 16px) !important;
-  padding: clamp(10px, 2.8vw, 14px) clamp(8px, 2.2vw, 12px) !important;
-}
-
-/* ✅ 초소형 기기(아이폰 SE 급)에서 더 줄여서 무조건 들어오게 */
-@media (max-width: 360px){
-  div[data-testid="stHorizontalBlock"]{ gap: 0.22rem !important; }
-  div.stButton > button{
-    font-size: 12px !important;
-    padding: 10px 8px !important;
-  }
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-# ============================================================
-# ✅ Supabase
+# Supabase
 # ============================================================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY", "")
@@ -92,12 +26,12 @@ if not SUPABASE_URL or not SUPABASE_ANON_KEY:
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # ============================================================
-# ✅ Utils: Korea time (Asia/Seoul fixed offset)
+# Utils
 # ============================================================
 KST = timezone(timedelta(hours=9))
 
 
-def today_kst_str() -> str:
+def today_kst_str():
     return datetime.now(KST).strftime("%Y-%m-%d")
 
 
@@ -108,258 +42,38 @@ def stable_seed(*parts: str) -> int:
 
 
 # ============================================================
-# ✅ Handwriting Canvas (원고지 격자 + 필기)
-#   ✅ 핵심 변경:
-#   - 모바일에서도 확실히 "가로로 긴 원고지"가 되도록
-#     -> vw/media query 대신 "고정 폭(px)" 사용 + 가로 스크롤
-#   - iframe 안에서도 무조건 적용됨
+# Custom Components
 # ============================================================
-def handwriting_canvas(component_key: str, height: int = 320):
-    html = r"""
-<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-  <style>
-    .kw-wrap{
-      width: 100%;
-      border: 2px solid rgba(120,120,120,0.22);
-      border-radius: 18px;
-      background: rgba(255,255,255,0.02);
-      padding: 12px;
-      box-sizing: border-box;
-    }
-    .kw-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
-    .kw-title{ font-weight:900; opacity:0.75; }
-    .kw-clear{
-      border:1px solid rgba(120,120,120,0.25);
-      background: rgba(255,255,255,0.03);
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-weight:900;
-      cursor:pointer;
-      white-space: nowrap;
-    }
+_dual_buttons = components.declare_component(
+    "dual_buttons",
+    path=None,
+)
 
-    /* ✅ 스크롤 컨테이너 (가로로 긴 원고지) */
-    .kw-scroll{
-      margin-top:10px;
-      width:100%;
-      overflow-x:auto;
-      overflow-y:hidden;
-      -webkit-overflow-scrolling: touch;
-      border-radius:14px;
-    }
+_handwriting_canvas = components.declare_component(
+    "handwriting_canvas",
+    path=None,
+)
 
-    /* ✅ "항상" 가로로 긴 캔버스: 기본은 100%지만, min-width로 강제 확장 */
-    .kw-canvas{
-      height: __H__px;
-      display:block;
-      border-radius:14px;
-      background: rgba(255,255,255,0.02);
-      touch-action:none;
 
-      /* ✅ 여기서 가로 길이를 결정 */
-      width: 100%;
-      min-width: 1100px;   /* 데스크탑/모바일 모두 '가로 원고지' 느낌 */
-    }
+def dual_buttons(key, left_label, right_label):
+    return _dual_buttons(
+        key=key,
+        left_label=left_label,
+        right_label=right_label,
+        default=None,
+    )
 
-    /* ✅ 작은 모바일일수록 좀 더 길게(원하면 1200~1600으로 올려도 됨) */
-    @media (max-width: 520px){
-      .kw-canvas{ min-width: 1200px; }
-    }
 
-    .kw-bottom{ margin-top:10px; display:flex; justify-content:flex-end; }
-    .kw-save{
-      border:0;
-      background: rgba(0,0,0,0.75);
-      color:white;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-weight:900;
-      cursor:pointer;
-      white-space: nowrap;
-    }
-  </style>
-
-  <div class="kw-wrap">
-    <div class="kw-top">
-      <div class="kw-title">✍️ 여기 한자를 써 보세요</div>
-      <button id="__KEY___clear" class="kw-clear">지우기</button>
-    </div>
-
-    <div class="kw-scroll">
-      <canvas id="__KEY___canvas" class="kw-canvas"></canvas>
-    </div>
-
-    <div class="kw-bottom">
-      <button id="__KEY___done" class="kw-save">필기 저장</button>
-    </div>
-  </div>
-
-  <script>
-    const canvas = document.getElementById("__KEY___canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const dpr = window.devicePixelRatio || 1;
-
-    function resizeCanvasToCSS(){
-      const cssW = canvas.clientWidth;
-      const cssH = canvas.clientHeight;
-      canvas.width = Math.round(cssW * dpr);
-      canvas.height = Math.round(cssH * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-
-    function cw(){ return canvas.width / dpr; }
-    function ch(){ return canvas.height / dpr; }
-
-    function drawGrid(){
-      const w = cw();
-      const h = ch();
-
-      const cols = 20;
-      const cell = w / cols;
-      const rows = Math.floor(h / cell);
-
-      ctx.save();
-
-      ctx.clearRect(0,0,w,h);
-      ctx.fillStyle = "rgba(255,255,255,0.02)";
-      ctx.fillRect(0,0,w,h);
-
-      ctx.globalAlpha = 0.22;
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(0,0,0,0.25)";
-
-      const off = 0.5;
-      ctx.beginPath();
-
-      for(let c=0; c<=cols; c++){
-        const rawX = c * cell;
-        const x = (c === cols) ? (w - off) : (rawX + off);
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
-      }
-
-      for(let r=0; r<=rows; r++){
-        const rawY = r * cell;
-        const y = (r === rows) ? (h - off) : (rawY + off);
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-      }
-
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.lineWidth = 7;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = "rgba(0,0,0,0.92)";
-    }
-
-    resizeCanvasToCSS();
-    drawGrid();
-
-    window.addEventListener("resize", () => {
-      resizeCanvasToCSS();
-      drawGrid();
-    });
-
-    let drawing = false;
-
-    function getPos(e){
-      const rect = canvas.getBoundingClientRect();
-      const touch = e.touches && e.touches[0];
-      const clientX = touch ? touch.clientX : e.clientX;
-      const clientY = touch ? touch.clientY : e.clientY;
-      return { x: clientX - rect.left, y: clientY - rect.top };
-    }
-
-    function start(e){
-      e.preventDefault();
-      drawing = true;
-      const p = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-    }
-
-    function move(e){
-      if(!drawing) return;
-      e.preventDefault();
-      const p = getPos(e);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-    }
-
-    function end(e){
-      if(!drawing) return;
-      e.preventDefault();
-      drawing = false;
-    }
-
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", end);
-
-    canvas.addEventListener("touchstart", start, { passive:false });
-    canvas.addEventListener("touchmove", move, { passive:false });
-    window.addEventListener("touchend", end, { passive:false });
-
-    document.getElementById("__KEY___clear").addEventListener("click", () => {
-      drawGrid();
-    });
-
-    document.getElementById("__KEY___done").addEventListener("click", () => {
-      const png = canvas.toDataURL("image/png");
-      window.parent.postMessage(
-        { type:"STREAMLIT_SET_COMPONENT_VALUE", value:{ png_b64: png, ts: Date.now() } },
-        "*"
-      );
-    });
-  </script>
-</div>
-"""
-    html = html.replace("__KEY__", component_key).replace("__H__", str(height))
-    # ✅ iframe 내부 가로 스크롤이 안정적으로 동작하도록
-    return components.html(html, height=height + 140, scrolling=True)
+def handwriting_canvas(key, height=320):
+    return _handwriting_canvas(
+        key=key,
+        height=height,
+        default=None,
+    )
 
 
 # ============================================================
-# ✅ Auth UI
-# ============================================================
-def auth_block():
-    st.title("📝 Kanji Writing (Self-check)")
-    st.caption("문장 속 (히라가나)를 한자로 써 보고, 채점 버튼으로 정답 확인 후 스스로 정/오를 체크합니다.")
-
-    tab1, tab2 = st.tabs(["로그인", "회원가입"])
-
-    with tab1:
-        email = st.text_input("이메일", key="login_email")
-        pw = st.text_input("비밀번호", type="password", key="login_pw")
-        if st.button("로그인", use_container_width=True):
-            try:
-                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
-                st.session_state.user = res.user
-                st.session_state.session = res.session
-                st.success("로그인 완료!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"로그인 실패: {e}")
-
-    with tab2:
-        email2 = st.text_input("이메일", key="signup_email")
-        pw2 = st.text_input("비밀번호", type="password", key="signup_pw")
-        if st.button("회원가입", use_container_width=True):
-            try:
-                sb.auth.sign_up({"email": email2, "password": pw2})
-                st.success("회원가입 완료! 이메일 인증이 필요할 수 있습니다.")
-            except Exception as e:
-                st.error(f"회원가입 실패: {e}")
-
-
-def require_login() -> bool:
-    return "user" in st.session_state and st.session_state.user
-
-
-# ============================================================
-# ✅ Data fetch
+# Data
 # ============================================================
 def fetch_sentences(bucket: str):
     res = (
@@ -380,27 +94,17 @@ def fetch_attempted_qids(user_id: str, bucket: str):
         .eq("bucket", bucket)
         .execute()
     )
-    data = res.data or []
-    return {row["qid"] for row in data if row.get("qid")}
+    return {r["qid"] for r in (res.data or [])}
 
 
-def insert_attempt(user_id, user_email, qid, bucket, level, self_grade, drawing_png_b64):
-    payload = {
-        "user_id": user_id,
-        "user_email": user_email,
-        "qid": qid,
-        "bucket": bucket,
-        "level": level,
-        "self_grade": self_grade,
-        "drawing_png_b64": drawing_png_b64,
-    }
+def insert_attempt(**payload):
     sb.table("kanji_writing_attempts").insert(payload).execute()
 
 
 # ============================================================
-# ✅ Today set builder
+# Today set
 # ============================================================
-def build_today_set(user_id: str, bucket: str, n: int = 10):
+def build_today_set(user_id: str, bucket: str, n=10):
     all_rows = fetch_sentences(bucket)
     if not all_rows:
         return []
@@ -409,8 +113,7 @@ def build_today_set(user_id: str, bucket: str, n: int = 10):
     fresh = [r for r in all_rows if r["qid"] not in attempted]
     fallback = [r for r in all_rows if r["qid"] in attempted]
 
-    seed = stable_seed(user_id, today_kst_str(), bucket)
-    rng = random.Random(seed)
+    rng = random.Random(stable_seed(user_id, today_kst_str(), bucket))
     rng.shuffle(fresh)
     rng.shuffle(fallback)
 
@@ -418,151 +121,101 @@ def build_today_set(user_id: str, bucket: str, n: int = 10):
 
 
 # ============================================================
-# ✅ Main UI after login
+# Auth
+# ============================================================
+def require_login():
+    return "user" in st.session_state and st.session_state.user
+
+
+# ============================================================
+# Main App
 # ============================================================
 def main_app():
     user = st.session_state.user
     user_id = str(user.id)
-    user_email = user.email or ""
-
-    st.title("📝 한자 쓰기 (자기 채점)")
-    st.caption("문장 속 (히라가나)를 한자로 써 보고 → 채점 버튼으로 정답 확인 → 스스로 정/오 체크")
-
-    top = st.columns([1, 1])
-    with top[0]:
-        if st.button("로그아웃", use_container_width=True):
-            try:
-                sb.auth.sign_out()
-            except Exception:
-                pass
-            st.session_state.user = None
-            st.session_state.session = None
-            st.rerun()
-
-    with top[1]:
-        save_drawing = st.toggle("필기 이미지 저장", value=False, help="ON이면 필기 PNG(base64)를 DB에 저장합니다. (DB 용량 주의)")
-
-    st.divider()
+    email = user.email or ""
 
     bucket_label = {"beginner": "초급", "intermediate": "중급", "advanced": "상급"}
 
     bucket = st.segmented_control(
         "레벨 선택",
-        options=["beginner", "intermediate", "advanced"],
+        options=list(bucket_label.keys()),
         format_func=lambda x: bucket_label[x],
-        default=st.session_state.get("bucket", "beginner"),
         key="bucket",
+        default=st.session_state.get("bucket", "beginner"),
     )
 
-    signature = f"{user_id}|{today_kst_str()}|{bucket}"
-    if st.session_state.get("today_signature") != signature:
-        st.session_state.today_signature = signature
-        st.session_state.today_set = build_today_set(user_id, bucket, n=10)
+    sig = f"{user_id}|{today_kst_str()}|{bucket}"
+    if st.session_state.get("sig") != sig:
+        st.session_state.sig = sig
+        st.session_state.today = build_today_set(user_id, bucket)
         st.session_state.idx = 0
         st.session_state.revealed = False
-        st.session_state.last_canvas = None
+        st.session_state.canvas = None
 
-    today_set = st.session_state.get("today_set", [])
-    if not today_set:
-        st.warning("해당 레벨 문제풀이가 비어 있습니다. kanji_writing_sentences에 데이터를 넣어 주세요.")
-        st.stop()
+    today = st.session_state.today
+    idx = st.session_state.idx
 
-    idx = st.session_state.get("idx", 0)
-    idx = max(0, min(idx, len(today_set)))
-
-    if idx >= len(today_set):
-        st.success("✅ 오늘의 10문장 완료!")
-        if st.button("오늘 다시 처음부터 보기", use_container_width=True):
-            st.session_state.idx = 0
-            st.session_state.revealed = False
-            st.session_state.last_canvas = None
-            st.rerun()
+    if idx >= len(today):
+        st.success("오늘의 학습 완료 🎉")
         return
 
-    row = today_set[idx]
-    qid = row["qid"]
-    sentence = row["sentence"]
-    answer_kanji = row["answer_kanji"]
-    level = row["level"]
-    note = row.get("note") or ""
+    row = today[idx]
 
-    st.markdown(f"### {bucket_label[bucket]} · {idx+1} / {len(today_set)}")
-    st.progress((idx + 1) / len(today_set))
+    st.markdown(f"### {bucket_label[bucket]} · {idx+1} / {len(today)}")
+    st.markdown(f"**{row['sentence']}**")
 
-    st.markdown("#### Q.")
-    st.markdown(f"**{sentence}**")
+    canvas = handwriting_canvas(
+        key=f"canvas_{row['qid']}_{idx}",
+        height=320,
+    )
+    if canvas:
+        st.session_state.canvas = canvas
 
-    if note:
-        with st.expander("힌트/노트"):
-            st.write(note)
+    action = dual_buttons(
+        key=f"act_{row['qid']}_{idx}",
+        left_label="🟦 채점",
+        right_label="⏭️ 다음 문제",
+    )
 
-    st.markdown("#### 필기")
-    canvas_key = f"canvas_{today_kst_str()}_{bucket}_{qid}_{idx}"
-    canvas_payload = handwriting_canvas(canvas_key, height=320)
+    if action == "left":
+        st.session_state.revealed = True
+        st.rerun()
 
-    if canvas_payload and isinstance(canvas_payload, dict) and canvas_payload.get("png_b64"):
-        st.session_state.last_canvas = canvas_payload.get("png_b64")
-        st.toast("필기 저장됨", icon="✍️")
+    if action == "right":
+        st.session_state.idx += 1
+        st.session_state.revealed = False
+        st.rerun()
 
-    st.divider()
+    if st.session_state.revealed:
+        st.markdown(f"### ✅ 정답: **{row['answer_kanji']}**")
 
-    # ✅ 채점 / 다음 문제 (모바일에서도 한 줄 + 잘림 방지 CSS 적용됨)
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🟦 채점", use_container_width=True, key=f"btn_check_{qid}_{idx}"):
-            st.session_state.revealed = True
-            st.rerun()
+        grade = dual_buttons(
+            key=f"grade_{row['qid']}_{idx}",
+            left_label="⭕ 정답",
+            right_label="❌ 오답",
+        )
 
-    with c2:
-        if st.button("⏭️ 다음 문제", use_container_width=True, key=f"btn_next_{qid}_{idx}"):
-            st.session_state.idx = idx + 1
+        if grade in ("left", "right"):
+            insert_attempt(
+                user_id=user_id,
+                user_email=email,
+                qid=row["qid"],
+                bucket=bucket,
+                level=row["level"],
+                self_grade="correct" if grade == "left" else "wrong",
+                drawing_png_b64=st.session_state.canvas,
+            )
+            st.session_state.idx += 1
             st.session_state.revealed = False
-            st.session_state.last_canvas = None
+            st.session_state.canvas = None
             st.rerun()
-
-    if st.session_state.get("revealed", False):
-        st.markdown("### ✅ 정답")
-        st.markdown(f"**{answer_kanji}**")
-        st.caption("정답을 확인했으면 아래에서 스스로 정/오를 선택해 주세요.")
-
-        g1, g2 = st.columns(2)
-        with g1:
-            if st.button("⭕ 정답", use_container_width=True, type="primary", key=f"btn_correct_{qid}_{idx}"):
-                insert_attempt(
-                    user_id=user_id,
-                    user_email=user_email,
-                    qid=qid,
-                    bucket=bucket,
-                    level=level,
-                    self_grade="correct",
-                    drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
-                )
-                st.session_state.idx = idx + 1
-                st.session_state.revealed = False
-                st.session_state.last_canvas = None
-                st.rerun()
-
-        with g2:
-            if st.button("❌ 오답", use_container_width=True, key=f"btn_wrong_{qid}_{idx}"):
-                insert_attempt(
-                    user_id=user_id,
-                    user_email=user_email,
-                    qid=qid,
-                    bucket=bucket,
-                    level=level,
-                    self_grade="wrong",
-                    drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
-                )
-                st.session_state.idx = idx + 1
-                st.session_state.revealed = False
-                st.session_state.last_canvas = None
-                st.rerun()
 
 
 # ============================================================
-# ✅ Entry
+# Entry
 # ============================================================
 if not require_login():
-    auth_block()
+    st.warning("로그인이 필요합니다.")
 else:
     main_app()
